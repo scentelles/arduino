@@ -13,15 +13,19 @@
 #include <WiFiClient.h>
 #include <ArtnetWifi.h>          // https://github.com/rstephan/ArtnetWifi
 #include <FS.h>
+#include <ESPDMX.h>              //https://github.com/mtongnz/espDMX
 
 #include "setup_ota.h"
 #include "send_break.h"
 
+
 #define MIN(x,y) (x<y ? x : y)
 #define ENABLE_MDNS
 #define ENABLE_WEBINTERFACE
-#define SERIAL_BREAK
 // #define COMMON_ANODE
+
+#define NB_DMX_CHANNELS 128
+DMXESPSerial dmx;
 
 Config config;
 ESP8266WebServer server(80);
@@ -76,12 +80,15 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *
 
 
 void setup() {
-  Serial1.begin(250000, SERIAL_8N2);
   Serial.begin(115200);
   while (!Serial) {
     ;
   }
+
   Serial.println("setup starting");
+
+  //Init DMX (noLed status)
+  dmx.init(NB_DMX_CHANNELS);
 
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
@@ -266,20 +273,11 @@ void loop() {
       tic_loop = millis();
       frameCounter++;
 
-#ifdef SERIAL_BREAK
-      Serial1.begin(56700, SERIAL_8N2);
-      Serial1.write(0);
-      Serial1.begin(250000, SERIAL_8N2);
-#else
-      // Send "break" using low-level code
-      sendBreak();
-#endif
-
-      Serial1.write(0); // Start-Byte
       // send out the value of the selected channels (up to 512)
-      for (int i = 0; i < MIN(global.length, config.channels); i++) {
-        Serial1.write(global.data[i]);
+      for (int i = 0; i < MIN(global.length, 32); i++) {
+        dmx.write(i+1, global.data[i]);
       }
+      dmx.update();           // update the DMX bus
     }
   }
 
