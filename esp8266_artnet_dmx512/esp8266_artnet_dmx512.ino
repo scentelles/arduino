@@ -25,6 +25,7 @@
 // #define COMMON_ANODE
 
 #define NB_DMX_CHANNELS 128
+
 DMXESPSerial dmx;
 
 Config config;
@@ -32,9 +33,9 @@ ESP8266WebServer server(80);
 const char* host = "ARTNET";
 const char* version = __DATE__ " / " __TIME__;
 
-#define LED_B 16  // GPIO16/D0
-#define LED_G 5   // GPIO05/D1
-#define LED_R 4   // GPIO04/D2
+#define LED_B D1  // GPIO16/D0
+#define LED_G D2   // GPIO05/D1
+#define LED_R D3   // GPIO04/D2
 
 // Artnet settings
 ArtnetWifi artnet;
@@ -57,6 +58,7 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *
   // print some feedback
   Serial.print("packetCounter = ");
   Serial.print(packetCounter++);
+
   if ((millis() - tic_fps) > 1000 && frameCounter > 100) {
     // don't estimate the FPS too frequently
     fps = 1000 * frameCounter / (millis() - tic_fps);
@@ -71,7 +73,7 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *
     // copy the data from the UDP packet over to the global universe buffer
     global.universe = universe;
     global.sequence = sequence;
-    if (length < 512)
+    if (length < NB_DMX_CHANNELS)
       global.length = length;
     for (int i = 0; i < global.length; i++)
       global.data[i] = data[i];
@@ -80,20 +82,20 @@ void onDmxPacket(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *
 
 
 void setup() {
+  
   Serial.begin(115200);
   while (!Serial) {
     ;
   }
-
   Serial.println("setup starting");
-
+  
   //Init DMX (noLed status)
-  dmx.init(NB_DMX_CHANNELS);
+  dmx.init(NB_DMX_CHANNELS); 
 
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
   pinMode(LED_B, OUTPUT);
-
+  
   global.universe = 0;
   global.sequence = 0;
   global.length = 512;
@@ -118,9 +120,7 @@ void setup() {
     singleRed();
 
   WiFiManager wifiManager;
-  // wifiManager.resetSettings();
-  WiFi.hostname(host);
-  wifiManager.setAPStaticIPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
+  //wifiManager.resetSettings();
   wifiManager.autoConnect(host);
   Serial.println("connected");
 
@@ -162,9 +162,8 @@ void setup() {
     delay(2000);
     singleRed();
     WiFiManager wifiManager;
-    wifiManager.setAPStaticIPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
     wifiManager.startConfigPortal(host);
-    Serial.println("connected");
+    Serial.println("Config Portal started");
     if (WiFi.status() == WL_CONNECTED)
       singleGreen();
   });
@@ -254,6 +253,7 @@ void setup() {
 } // setup
 
 void loop() {
+  
   server.handleClient();
 
   if (WiFi.status() != WL_CONNECTED) {
@@ -274,7 +274,7 @@ void loop() {
       frameCounter++;
 
       // send out the value of the selected channels (up to 512)
-      for (int i = 0; i < MIN(global.length, 32); i++) {
+      for (int i = 0; i < MIN(global.length, NB_DMX_CHANNELS); i++) {
         dmx.write(i+1, global.data[i]);
       }
       dmx.update();           // update the DMX bus
